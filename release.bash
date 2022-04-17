@@ -40,8 +40,8 @@ build_base_sd_image() {
 	pushd out/
 	# Load NBD module
 	root_command modprobe nbd
-	# Create image file
-	qemu-img create -f qcow2 "${IMAGE_FILE}" 4G
+	# Create image file (3.6 GiB)
+	qemu-img create -f qcow2 "${IMAGE_FILE}" 3865470976
 	root_command qemu-nbd --connect /dev/nbd0 "${IMAGE_FILE}"
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
@@ -80,8 +80,14 @@ setup_u_boot() {
 
 	if [ "${DEVICE}" != "n306" ]; then
 		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.bin" "${GITDIR}/out/release/u-boot_inkbox.bin"
+		sync
+		root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1 skip=1
+		sync
 	else
-		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.bin" "${GITDIR}/out/release/u-boot_inkbox.imx"
+		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.imx" "${GITDIR}/out/release/u-boot_inkbox.bin"
+		sync
+		root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1
+		sync
 	fi
 
 	popd
@@ -180,6 +186,10 @@ setup_user() {
 	root_command cp -v squashfs-root/update.isa "${MOUNT_BASEPATH}/user/update/update.isa"
 	sync
 	rm -rf squashfs-root/
+	root_command rm -rf "${MOUNT_BASEPATH}/user/config"
+	root_command mkdir -p "${MOUNT_BASEPATH}/user/config"
+	root_command tar -xvf "${GITDIR}/sd/config-${DEVICE}.tar.xz" -C "${MOUNT_BASEPATH}/user/config"
+	sync
 	pushd release/ && root_command tar cJvf user-partition.tar.xz -C "${MOUNT_BASEPATH}/user" . && popd
 	sync
 	popd
@@ -192,6 +202,7 @@ setup_recoveryfs() {
 
 	root_command cp -v "${GITDIR}/out/release/rootfs-partition.tar.xz" opt/recovery/restore/rootfs-part.tar.xz
 	root_command cp -v "${GITDIR}/out/release/user-partition.tar.xz" opt/recovery/restore/userstore.tar.xz
+	root_command cp -v "${GITDIR}/sd/config-${DEVICE}.tar.xz" opt/recovery/restore/config.tar.xz
 	if [ "${DEVICE}" == "n306" ]; then
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
@@ -209,6 +220,19 @@ setup_recoveryfs() {
 	sync
 
 	popd
+}
+
+pack_image() {
+	printf "==== Packing final image ====\n"
+	root_command dd if=/dev/nbd0 status=progress of="inkbox-${CURRENT_VERSION}-${DEVICE}.xz"
+	sync
+}
+
+cleanup() {
+	printf "==== Cleaning up ====\n"
+	root_command umount "${MOUNT_BASEPATH}/boot" "${MOUNT_BASEPATH}/recoveryfs" "${MOUNT_BASEPATH}/rootfs" "${MOUNT_BASEPATH}/user"
+	root_command qemu-nbd --disconnect /dev/nbd0
+	rm -rf "${MOUNT_BASEPATH}"
 }
 
 case "${1}" in
@@ -245,3 +269,6 @@ setup_boot
 setup_rootfs
 setup_user
 setup_recoveryfs
+pack_image
+cleanup
+printf "==== All done! ====\n"
