@@ -175,6 +175,7 @@ setup_user() {
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.a?raw=true" -O "user.sqsh.a"
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.b?raw=true" -O "user.sqsh.b"
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.c?raw=true" -O "user.sqsh.c"
+	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.d?raw=true" -O "user.sqsh.d"
 	cat user.sqsh.* > user.sqsh
 	sync
 	root_command unsquashfs -f -d "${MOUNT_BASEPATH}/user" user.sqsh && sync && popd
@@ -203,6 +204,7 @@ setup_recoveryfs() {
 	root_command cp -v "${GITDIR}/out/release/rootfs-partition.tar.xz" opt/recovery/restore/rootfs-part.tar.xz
 	root_command cp -v "${GITDIR}/out/release/user-partition.tar.xz" opt/recovery/restore/userstore.tar.xz
 	root_command cp -v "${GITDIR}/sd/config-${DEVICE}.tar.xz" opt/recovery/restore/config.tar.xz
+	root_command cp -v "${GITDIR}/out/release/u-boot_inkbox.bin" opt/recovery/restore/u-boot_inkbox.bin
 	if [ "${DEVICE}" == "n306" ]; then
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
@@ -214,7 +216,7 @@ setup_recoveryfs() {
 
 	env GITDIR="${PWD}" ./release.sh && popd
 	openssl dgst -sha256 -sign "${PKEY}" -out "${GITDIR}/sd/overlaymount-rootfs.squashfs.dgst" "${GITDIR}/sd/overlaymount-rootfs.squashfs"
-	root_command cp -v "${GITDIR}/sd/overlaymount-rootfs.squashfs" "${GITDIR}/sd/overlaymount-rootfs.squashfs.dgst" "${MOUNT_BASEPATH}/rootfs"
+	root_command cp -v "${GITDIR}/sd/overlaymount-rootfs.squashfs" "${GITDIR}/sd/overlaymount-rootfs.squashfs.dgst" "${MOUNT_BASEPATH}/recoveryfs"
 	openssl dgst -sha256 -sign "${PKEY}" -out recoveryfs.squashfs.dgst recoveryfs.squashfs
 	root_command cp -v "recoveryfs.squashfs" "recoveryfs.squashfs.dgst" "${MOUNT_BASEPATH}/recoveryfs"
 	sync
@@ -224,8 +226,10 @@ setup_recoveryfs() {
 
 pack_image() {
 	printf "==== Packing final image ====\n"
-	root_command dd if=/dev/nbd0 status=progress of="inkbox-${CURRENT_VERSION}-${DEVICE}.xz"
+	pushd out/release/
+	root_command dd if=/dev/nbd0 status=progress of="inkbox-${CURRENT_VERSION}-${DEVICE}.img"
 	sync
+	popd
 }
 
 cleanup() {
