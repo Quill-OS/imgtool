@@ -46,10 +46,10 @@ build_base_sd_image() {
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
 	# Format partitions
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p1
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p2
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p3
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p4
+	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p1
+	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p2
+	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p3
+	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p4
 	# Label partitions
 	root_command e2label /dev/nbd0p1 "boot"
 	root_command e2label /dev/nbd0p2 "recoveryfs"
@@ -103,13 +103,12 @@ setup_kernel() {
 		KERNEL_FILE="uImage-${KERNEL_TYPE}"
 	fi
 
-	root_command env GITDIR="${PWD}" scripts/make_devicenodes.sh
 	if [ "${DEVICE}" == "n705" ] || [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n905c" ] || [ "${DEVICE}" == "n613" ]; then
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" std
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" root
 
 		# Basic Diagnostics Kernel
-		if [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n613" ]; then
+		if [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n905c" ] || [ "${DEVICE}" == "n613" ]; then
 			env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" diags
 			cp -v "kernel/out/${DEVICE}/uImage-diags" "${GITDIR}/out/release/uImage-diags"
 			root_command dd if="kernel/out/${DEVICE}/uImage-diags" of=/dev/nbd0 bs=512 seek=19456
@@ -120,8 +119,8 @@ setup_kernel() {
 	fi
 
 	if [ "${DEVICE}" == "n306" ]; then
-		cp -v "kernel/out/${DEVICE}/zImage-std" "${GITDIR}/out/release/uImage-std"
-		cp -v "kernel/out/${DEVICE}/zImage-root" "${GITDIR}/out/release/uImage-root"
+		cp -v "kernel/out/${DEVICE}/zImage-std" "${GITDIR}/out/release/zImage-std"
+		cp -v "kernel/out/${DEVICE}/zImage-root" "${GITDIR}/out/release/zImage-root"
 	else
 		cp -v "kernel/out/${DEVICE}/uImage-std" "${GITDIR}/out/release/uImage-std"
 		cp -v "kernel/out/${DEVICE}/uImage-root" "${GITDIR}/out/release/uImage-root"
