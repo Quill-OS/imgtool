@@ -171,6 +171,7 @@ setup_user() {
 	printf "==== Populating user data partition ====\n"
 	pushd out/
 	mkdir -p user/ && pushd user/
+	# cp /home/build/inkbox/emu/sd/user.sqsh.* .
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.a?raw=true" -O "user.sqsh.a"
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.b?raw=true" -O "user.sqsh.b"
 	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.c?raw=true" -O "user.sqsh.c"
@@ -178,6 +179,12 @@ setup_user() {
 	cat user.sqsh.* > user.sqsh
 	sync
 	root_command unsquashfs -f -d "${MOUNT_BASEPATH}/user" user.sqsh && sync && popd
+
+	# GUI rootfs base
+	git clone "${GIT_BASE_URL}/gui-rootfs" && pushd gui-rootfs/
+	env GITDIR="${PWD}" ./release.sh && popd
+	cp -v "gui_rootfs.isa" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
+
 	root_command openssl dgst -sha256 -sign "${PKEY}" -out "${MOUNT_BASEPATH}/user/gui_rootfs.isa.dgst" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
 	CURRENT_VERSION=$(wget -q -O - "${PKGS_BASE_URL}/bundles/inkbox/native/update/ota_current")
 	printf "%s\n" "${CURRENT_VERSION}" | root_command tee -a "${MOUNT_BASEPATH}/user/update/version"
@@ -206,7 +213,7 @@ setup_recoveryfs() {
 	root_command cp -v "${GITDIR}/out/release/u-boot_inkbox.bin" opt/recovery/restore/u-boot_inkbox.bin
 	if [ "${DEVICE}" == "n306" ]; then
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
-		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
+		root_command cp -v "${GITDIR}/out/release/zImage-root" opt/recovery/restore/zImage-root
 	else
 		root_command cp -v "${GITDIR}/out/release/uImage-std" opt/recovery/restore/uImage-std
 		root_command cp -v "${GITDIR}/out/release/uImage-root" opt/recovery/restore/uImage-root
