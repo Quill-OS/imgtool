@@ -1,5 +1,3 @@
-First read notes below
-
 ## Docker way
 On Arch, install docker and start it:
 ```
