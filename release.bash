@@ -47,9 +47,6 @@ build_base_sd_image() {
 	root_command qemu-nbd --connect /dev/nbd0 "${IMAGE_FILE}"
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
-	# https://superuser.com/questions/1329362/qemu-nbd-not-creating-partions
-	# https://unix.stackexchange.com/questions/319922/error-cant-have-a-partition-outside-the-disk-even-though-number-of-sectors
-	dd if=/dev/zero bs=512 count=1 >> /dev/nbd0 && sync
 	# Format partitions
 	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p1
 	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p2
@@ -167,7 +164,7 @@ setup_rootfs() {
 	openssl dgst -sha256 -sign "${PKEY}" -out rootfs.squashfs.dgst rootfs.squashfs
 	root_command cp -v "rootfs.squashfs" "rootfs.squashfs.dgst" "${MOUNT_BASEPATH}/rootfs"
 	sync
-	pushd release/ && root_command tar cJvf rootfs-partition.tar.xz -C "${MOUNT_BASEPATH}/rootfs" . && popd
+	pushd release/ && root_command tar -I 'xz -9 -T0' -cvf rootfs-partition.tar.xz -C "${MOUNT_BASEPATH}/rootfs" . && popd
 	sync
 	popd
 }
@@ -202,7 +199,7 @@ setup_user() {
 	root_command mkdir -p "${MOUNT_BASEPATH}/user/config"
 	root_command tar -xvf "${GITDIR}/sd/config-${DEVICE}.tar.xz" -C "${MOUNT_BASEPATH}/user/config"
 	sync
-	pushd release/ && root_command tar cJvf user-partition.tar.xz -C "${MOUNT_BASEPATH}/user" . && popd
+	pushd release/ && root_command tar -I 'xz -9 -T0' -cvf user-partition.tar.xz -C "${MOUNT_BASEPATH}/user" . && popd
 	sync
 	popd
 }

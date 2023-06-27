@@ -13,4 +13,7 @@ umount -f /dev/nbd0p2
 umount -f /dev/nbd0p3
 umount -f /dev/nbd0p4
 
+# Sooo important...
+rm -rf out/
+
 echo "Check manually in htop anyway..."
