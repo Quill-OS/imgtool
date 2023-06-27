@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -xe 
 
 root_command() {
 	if [ "${STRICT_ROOT_PERMISSION}" == 1 ]; then
@@ -39,17 +39,22 @@ build_base_sd_image() {
 	IMAGE_FILE="release/inkbox-${DEVICE}.img"
 	pushd out/
 	# Load NBD module
-	root_command modprobe nbd
+	# root_command modprobe nbd
+	# Manually, on the host :)
+
 	# Create image file (3.6 GiB)
 	qemu-img create -f qcow2 "${IMAGE_FILE}" 3865470976
 	root_command qemu-nbd --connect /dev/nbd0 "${IMAGE_FILE}"
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
+	# https://superuser.com/questions/1329362/qemu-nbd-not-creating-partions
+	# https://unix.stackexchange.com/questions/319922/error-cant-have-a-partition-outside-the-disk-even-though-number-of-sectors
+	dd if=/dev/zero bs=512 count=1 >> /dev/nbd0 && sync
 	# Format partitions
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p1
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p2
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p3
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p4
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p1
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p2
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p3
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p4
 	# Label partitions
 	root_command e2label /dev/nbd0p1 "boot"
 	root_command e2label /dev/nbd0p2 "recoveryfs"
