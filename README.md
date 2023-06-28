@@ -14,7 +14,8 @@ docker build -t inkbox_imgtool .
 
 Before running, run this:
 ```
-sudo rmmod nbd && sudo modprobe nbd max_part=16
+sudo rmmod nbd
+sudo modprobe nbd max_part=16
 ```
 
 Run it ( yes, imgtool should be at `/home/build/inkbox/imgtool/` ):
@@ -22,7 +23,7 @@ Run it ( yes, imgtool should be at `/home/build/inkbox/imgtool/` ):
 docker run -it --rm --privileged --cap-add=ALL -v /home/build/inkbox/:/home/build/inkbox/ -v /dev:/dev inkbox_imgtool
 ```
 
-You propably want your own keys, run this ( if yes, you need to replace the private key in kernel manually, in key.sqsh ):
+You propably want your own keys, run this:
 ```
 openssl genrsa -out private.pem 2048
 openssl rsa -in private.pem -out public.pem -outform PEM -pubout
@@ -30,7 +31,7 @@ openssl rsa -in private.pem -out public.pem -outform PEM -pubout
 
 and run, for example:
 ```
-./before_run.bash && ./clean.bash && KERNELDIR=/home/build/inkbox/kernel/ ./release.bash n306 /home/build/inkbox/imgtool/private.pem root
+./before_run.bash && ./clean.bash && KERNELDIR=/home/build/inkbox/kernel/ ./release.bash n306 /home/build/inkbox/imgtool/private.pem /home/build/inkbox/imgtool/public.pem root
 ```
 
 notes:
