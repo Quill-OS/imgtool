@@ -52,10 +52,10 @@ build_base_sd_image() {
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
 	# Format partitions
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p1
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p2
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p3
-	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p4
+	root_command mkfs.ext4 /dev/nbd0p1
+	root_command mkfs.ext4 /dev/nbd0p2
+	root_command mkfs.ext4 /dev/nbd0p3
+	root_command mkfs.ext4 /dev/nbd0p4
 	# Label partitions
 	root_command e2label /dev/nbd0p1 "boot"
 	root_command e2label /dev/nbd0p2 "recoveryfs"

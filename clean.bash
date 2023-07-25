@@ -7,11 +7,12 @@ killall -9 qemu-nbd
 killall -9 qemu-nbd
 killall -9 qemu-nbd
 
-umount -f /dev/nbd0
-umount -f /dev/nbd0p1
-umount -f /dev/nbd0p2
-umount -f /dev/nbd0p3
-umount -f /dev/nbd0p4
+umount -l -f /tmp/inkbox-*/*
+umount -l -f /dev/nbd0
+umount -l -f /dev/nbd0p1
+umount -l -f /dev/nbd0p2
+umount -l -f /dev/nbd0p3
+umount -l -f /dev/nbd0p4
 
 # Sooo important...
 rm -rf out/
