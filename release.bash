@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -xe 
 
 root_command() {
 	if [ "${STRICT_ROOT_PERMISSION}" == 1 ]; then
@@ -16,15 +16,19 @@ if [ -z "${1}" ]; then
 	printf "You must provide the 'device' argument.\nAvailable options are: n705, n905b, n905c, n613, n236, n437, n306\n"
 	exit 1
 elif [ -z "${2}" ]; then
-	printf "You must provide the 'private key' argument.\n"
+	printf "You must provide the 'private key path' argument.\n"
 	exit 1
 elif [ -z "${3}" ]; then
+	printf "You must provide the 'public key path' argument.\n"
+	exit 1
+elif [ -z "${4}" ]; then
 	printf "You must provide the 'kernel type' argument.\nAvailable options are: std, root"
 	exit 1
 fi
 
 PKEY="${2}"
-KERNEL_TYPE="${3}"
+PUBLICKEY="${3}"
+KERNEL_TYPE="${4}"
 GIT_BASE_URL="https://github.com/Kobo-InkBox"
 PKGS_BASE_URL="http://23.163.0.39"
 MOUNT_BASEPATH="/tmp/inkbox-$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 10)"
@@ -39,17 +43,19 @@ build_base_sd_image() {
 	IMAGE_FILE="release/inkbox-${DEVICE}.img"
 	pushd out/
 	# Load NBD module
-	root_command modprobe nbd
+	# root_command modprobe nbd
+	# Manually, on the host :)
+
 	# Create image file (3.6 GiB)
 	qemu-img create -f qcow2 "${IMAGE_FILE}" 3865470976
 	root_command qemu-nbd --connect /dev/nbd0 "${IMAGE_FILE}"
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
 	# Format partitions
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p1
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p2
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p3
-	root_command mkfs.ext4 -O "^metadata_csum,^orphan_file" /dev/nbd0p4
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p1
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p2
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p3
+	root_command mkfs.ext4 -O "^metadata_csum" /dev/nbd0p4
 	# Label partitions
 	root_command e2label /dev/nbd0p1 "boot"
 	root_command e2label /dev/nbd0p2 "recoveryfs"
@@ -102,6 +108,18 @@ setup_kernel() {
 	else
 		KERNEL_FILE="uImage-${KERNEL_TYPE}"
 	fi
+
+	# Replace the public key in kernel
+	cd initrd/"${DEVICE}"/opt/
+	unsquashfs -d key key.sqsh
+	rm -f key.sqsh
+	cd key/
+	rm -f public.pem
+	cp "${PUBLICKEY}" ./public.pem
+	mksquashfs . ../key.sqsh -b 1048576 -comp gzip -always-use-fragments
+	cd ../
+	rm -rf key/
+	cd ../../../
 
 	if [ "${DEVICE}" == "n705" ] || [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n905c" ] || [ "${DEVICE}" == "n613" ]; then
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" std
@@ -162,7 +180,7 @@ setup_rootfs() {
 	openssl dgst -sha256 -sign "${PKEY}" -out rootfs.squashfs.dgst rootfs.squashfs
 	root_command cp -v "rootfs.squashfs" "rootfs.squashfs.dgst" "${MOUNT_BASEPATH}/rootfs"
 	sync
-	pushd release/ && root_command tar cJvf rootfs-partition.tar.xz -C "${MOUNT_BASEPATH}/rootfs" . && popd
+	pushd release/ && root_command tar -I 'xz -9 -T0' -cvf rootfs-partition.tar.xz -C "${MOUNT_BASEPATH}/rootfs" . && popd
 	sync
 	popd
 }
@@ -190,6 +208,19 @@ setup_user() {
 	printf "%s\n" "${CURRENT_VERSION}" | root_command tee -a "${MOUNT_BASEPATH}/user/update/version"
 	wget "${PKGS_BASE_URL}/bundles/inkbox/native/update/${CURRENT_VERSION}/${DEVICE}/inkbox-update-${CURRENT_VERSION}.upd.isa"
 	unsquashfs "inkbox-update-${CURRENT_VERSION}.upd.isa" -extract-file update.isa
+
+	# Replace the keys in update.isa
+	cd squashfs-root/
+	unsquashfs -d update_inkbox update.isa
+	rm -f update.isa
+	cd update_inkbox/
+	rm -f inkbox.isa.dgst
+	rm -f qt.isa.dgst
+	openssl dgst -sha256 -sign "${PKEY}" -out qt.isa.dgst qt.isa
+	openssl dgst -sha256 -sign "${PKEY}" -out inkbox.isa.dgst inkbox.isa
+	mksquashfs . ../update.isa -b 1048576 -comp gzip -always-use-fragments
+	cd ../../
+
 	root_command cp -v squashfs-root/update.isa "${MOUNT_BASEPATH}/user/update/update.isa"
 	sync
 	rm -rf squashfs-root/
@@ -197,7 +228,7 @@ setup_user() {
 	root_command mkdir -p "${MOUNT_BASEPATH}/user/config"
 	root_command tar -xvf "${GITDIR}/sd/config-${DEVICE}.tar.xz" -C "${MOUNT_BASEPATH}/user/config"
 	sync
-	pushd release/ && root_command tar cJvf user-partition.tar.xz -C "${MOUNT_BASEPATH}/user" . && popd
+	pushd release/ && root_command tar -I 'xz -9 -T0' -cvf user-partition.tar.xz -C "${MOUNT_BASEPATH}/user" . && popd
 	sync
 	popd
 }
