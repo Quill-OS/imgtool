@@ -82,9 +82,11 @@ setup_u_boot() {
 		env TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
 	elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
 		env TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
+	elif [ "${DEVICE}" == "n249" ]; then
+		env TOOLCHAINDIR="${PWD}/toolchain/arm-kobo-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-kobo-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
 	fi
 
-	if [ "${DEVICE}" != "n306" ] && [ "${DEVICE}" != "n306c" ]; then
+	if [ "${DEVICE}" != "n306" ] && [ "${DEVICE}" != "n306c" ] && [ "${DEVICE}" != "n249" ]; then
 		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.bin" "${GITDIR}/out/release/u-boot_inkbox.bin"
 		sync
 		root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1 skip=1
