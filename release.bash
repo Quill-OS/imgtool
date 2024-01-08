@@ -217,7 +217,7 @@ setup_user() {
 	# GUI rootfs base
 	git clone "${GIT_BASE_URL}/gui-rootfs" && pushd gui-rootfs/
 	env GITDIR="${PWD}" ./release.sh && popd
-	cp -v "gui_rootfs.isa" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
+	root_command cp -v "gui_rootfs.isa" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
 
 	root_command openssl dgst -sha256 -sign "${PKEY}" -out "${MOUNT_BASEPATH}/user/gui_rootfs.isa.dgst" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
 	CURRENT_VERSION=$(wget -q -O - "${PKGS_BASE_URL}/bundles/inkbox/native/update/ota_current")
