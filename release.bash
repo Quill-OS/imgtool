@@ -166,9 +166,9 @@ setup_kernel() {
 	fi
 
 	if [ "${DEVICE}" == "n249" ]; then
-		cp "kernel/out/${DEVICE}/${KERNEL_FILE}" "${MOUNT_BASEPATH}/boot/zImage"
-		cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
-		cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
+		root_command cp "kernel/out/${DEVICE}/${KERNEL_FILE}" "${MOUNT_BASEPATH}/boot/zImage"
+		root_command cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
+		root_command cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
 	else
 		root_command dd if="kernel/out/${DEVICE}/${KERNEL_FILE}" of=/dev/nbd0 bs=512 seek=81920
 	fi
