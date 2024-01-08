@@ -99,12 +99,28 @@ setup_u_boot() {
 	popd
 }
 
+mount_fs() {
+	printf "==== Mounting filesystems ====\n"
+	mkdir -p "${MOUNT_BASEPATH}/boot"
+	mkdir -p "${MOUNT_BASEPATH}/recoveryfs"
+	mkdir -p "${MOUNT_BASEPATH}/rootfs"
+	mkdir -p "${MOUNT_BASEPATH}/user"
+	root_command mount /dev/nbd0p1 "${MOUNT_BASEPATH}/boot"
+	root_command mount /dev/nbd0p2 "${MOUNT_BASEPATH}/recoveryfs"
+	root_command mount /dev/nbd0p3 "${MOUNT_BASEPATH}/rootfs"
+	root_command mount /dev/nbd0p4 "${MOUNT_BASEPATH}/user"
+}
+
 setup_kernel() {
 	printf "==== Setting up InkBox OS kernel ====\n"
 	setup_kernel_repository
 
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
 		KERNEL_FILE="zImage-${KERNEL_TYPE}"
+		if [ "${DEVICE}" == "n249" ]; then
+			DTB_FILE="DTB"
+			BOOTSCRIPT_FILE="boot.scr"
+		fi
 	else
 		KERNEL_FILE="uImage-${KERNEL_TYPE}"
 	fi
@@ -134,9 +150,12 @@ setup_kernel() {
 	elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" std
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" root
+	elif [ "${DEVICE}" == "n249" ]; then
+		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/armv7l-linux-musleabihf-cross" THREADS=$(($(nproc)*2)) TARGET=armv7l-linux-musleabihf scripts/build_kernel.sh "${DEVICE}" std
+		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/armv7l-linux-musleabihf-cross" THREADS=$(($(nproc)*2)) TARGET=armv7l-linux-musleabihf scripts/build_kernel.sh "${DEVICE}" root
 	fi
 
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
 		cp -v "kernel/out/${DEVICE}/zImage-std" "${GITDIR}/out/release/zImage-std"
 		cp -v "kernel/out/${DEVICE}/zImage-root" "${GITDIR}/out/release/zImage-root"
 	else
@@ -144,23 +163,18 @@ setup_kernel() {
 		cp -v "kernel/out/${DEVICE}/uImage-root" "${GITDIR}/out/release/uImage-root"
 	fi
 
-	root_command dd if="kernel/out/${DEVICE}/${KERNEL_FILE}" of=/dev/nbd0 bs=512 seek=81920
+	if [ "${DEVICE}" == "n249" ]; then
+		cp "kernel/out/${DEVICE}/${KERNEL_FILE}" "${MOUNT_BASEPATH}/boot/zImage"
+		cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
+		cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
+	else
+		root_command dd if="kernel/out/${DEVICE}/${KERNEL_FILE}" of=/dev/nbd0 bs=512 seek=81920
+	fi
+
 	if [ "${KERNEL_TYPE}" == "root" ]; then
 		printf "rooted" | root_command dd of=/dev/nbd0 bs=512 seek=79872
 	fi
 	popd
-}
-
-mount_fs() {
-	printf "==== Mounting filesystems ====\n"
-	mkdir -p "${MOUNT_BASEPATH}/boot"
-	mkdir -p "${MOUNT_BASEPATH}/recoveryfs"
-	mkdir -p "${MOUNT_BASEPATH}/rootfs"
-	mkdir -p "${MOUNT_BASEPATH}/user"
-	root_command mount /dev/nbd0p1 "${MOUNT_BASEPATH}/boot"
-	root_command mount /dev/nbd0p2 "${MOUNT_BASEPATH}/recoveryfs"
-	root_command mount /dev/nbd0p3 "${MOUNT_BASEPATH}/rootfs"
-	root_command mount /dev/nbd0p4 "${MOUNT_BASEPATH}/user"
 }
 
 setup_boot() {
@@ -242,7 +256,7 @@ setup_recoveryfs() {
 	root_command cp -v "${GITDIR}/out/release/user-partition.tar.xz" opt/recovery/restore/userstore.tar.xz
 	root_command cp -v "${GITDIR}/sd/config-${DEVICE}.tar.xz" opt/recovery/restore/config.tar.xz
 	root_command cp -v "${GITDIR}/out/release/u-boot_inkbox.bin" opt/recovery/restore/u-boot_inkbox.bin
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
 		root_command cp -v "${GITDIR}/out/release/zImage-root" opt/recovery/restore/zImage-root
 	else
@@ -310,8 +324,8 @@ esac
 
 build_base_sd_image
 setup_u_boot
-setup_kernel
 mount_fs
+setup_kernel
 setup_boot
 setup_rootfs
 setup_user
