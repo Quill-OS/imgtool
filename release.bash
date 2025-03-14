@@ -7,7 +7,11 @@ root_command() {
 		sudo -k
 		sudo "${@}" || exit 1
 	else
-		sudo "${@}" || exit 1
+		if [ "${IGNORE_EXITCODE}" == 1 ]; then
+			sudo "${@}" || true
+		else
+			sudo "${@}" || exit 1
+		fi
 	fi
 }
 
@@ -29,9 +33,16 @@ fi
 PKEY="${2}"
 PUBLICKEY="${3}"
 KERNEL_TYPE="${4}"
-GIT_BASE_URL="https://github.com/Kobo-InkBox"
+GIT_BASE_URL="https://github.com/Quill-OS"
 PKGS_BASE_URL="http://23.163.0.39"
 MOUNT_BASEPATH="/tmp/inkbox-$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 10)"
+
+if [ "${AUTO_CLEANUP}" == 1 ]; then
+	# Cleaning up possible earlier unsuccessful attemps
+	IGNORE_EXITCODE=1 root_command umount -l -f /tmp/inkbox*/*
+	rm -rf out/
+	root_command qemu-nbd --disconnect /dev/nbd0
+fi
 
 # Setting current directory to this Git repository
 cd "$(dirname '${0}')"
@@ -78,26 +89,28 @@ setup_u_boot() {
 	printf "==== Setting up U-Boot bootloader ====\n"
 	setup_kernel_repository
 
-	if [ "${DEVICE}" == "n705" ] || [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n905c" ] || [ "${DEVICE}" == "n613" ]; then
-		env TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
-	elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
-		env TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
-	elif [ "${DEVICE}" == "n249" ]; then
-		env TOOLCHAINDIR="${PWD}/toolchain/arm-kobo-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-kobo-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
-	fi
+	# We don't modify U-Boot for Libra 2
+	if [ "${DEVICE}" != "n418" ]; then
+		if [ "${DEVICE}" == "n705" ] || [ "${DEVICE}" == "n905b" ] || [ "${DEVICE}" == "n905c" ] || [ "${DEVICE}" == "n613" ]; then
+			env TOOLCHAINDIR="${PWD}/toolchain/gcc-4.8" THREADS=$(($(nproc)*2)) TARGET=arm-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
+		elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
+			env TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
+		elif [ "${DEVICE}" == "n249" ]; then
+			env TOOLCHAINDIR="${PWD}/toolchain/arm-kobo-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-kobo-linux-gnueabihf scripts/build_u-boot.sh "${DEVICE}"
+		fi
 
-	if [ "${DEVICE}" != "n306" ] && [ "${DEVICE}" != "n306c" ] && [ "${DEVICE}" != "n249" ]; then
-		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.bin" "${GITDIR}/out/release/u-boot_inkbox.bin"
-		sync
-		root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1 skip=1
-		sync
-	else
-		cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.imx" "${GITDIR}/out/release/u-boot_inkbox.bin"
-		sync
-		root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1
-		sync
+		if [ "${DEVICE}" != "n306" ] && [ "${DEVICE}" != "n306c" ] && [ "${DEVICE}" != "n249" ]; then
+			cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.bin" "${GITDIR}/out/release/u-boot_inkbox.bin"
+			sync
+			root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1 skip=1
+			sync
+		else
+			cp -v "bootloader/out/u-boot_inkbox.${DEVICE}.imx" "${GITDIR}/out/release/u-boot_inkbox.bin"
+			sync
+			root_command dd if="${GITDIR}/out/release/u-boot_inkbox.bin" of=/dev/nbd0 bs=1K seek=1
+			sync
+		fi
 	fi
-
 	popd
 }
 
@@ -117,7 +130,7 @@ setup_kernel() {
 	printf "==== Setting up InkBox OS kernel ====\n"
 	setup_kernel_repository
 
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ] || [ "${DEVICE}" == "n418" ]; then
 		KERNEL_FILE="zImage-${KERNEL_TYPE}"
 		if [ "${DEVICE}" == "n249" ]; then
 			DTB_FILE="DTB"
@@ -149,7 +162,7 @@ setup_kernel() {
 			cp -v "kernel/out/${DEVICE}/uImage-diags" "${GITDIR}/out/release/uImage-diags"
 			root_command dd if="kernel/out/${DEVICE}/uImage-diags" of=/dev/nbd0 bs=512 seek=19456
 		fi
-	elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ]; then
+	elif [ "${DEVICE}" == "n236" ] || [ "${DEVICE}" == "n437" ] || [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n418" ]; then
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" std
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/arm-nickel-linux-gnueabihf" THREADS=$(($(nproc)*2)) TARGET=arm-nickel-linux-gnueabihf scripts/build_kernel.sh "${DEVICE}" root
 	elif [ "${DEVICE}" == "n249" ]; then
@@ -157,7 +170,7 @@ setup_kernel() {
 		env GITDIR="${PWD}" TOOLCHAINDIR="${PWD}/toolchain/armv7l-linux-musleabihf-cross" THREADS=$(($(nproc)*2)) TARGET=armv7l-linux-musleabihf scripts/build_kernel.sh "${DEVICE}" root
 	fi
 
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ] || [ "${DEVICE}" == "n418" ]; then
 		cp -v "kernel/out/${DEVICE}/zImage-std" "${GITDIR}/out/release/zImage-std"
 		cp -v "kernel/out/${DEVICE}/zImage-root" "${GITDIR}/out/release/zImage-root"
 	else
@@ -165,10 +178,12 @@ setup_kernel() {
 		cp -v "kernel/out/${DEVICE}/uImage-root" "${GITDIR}/out/release/uImage-root"
 	fi
 
-	if [ "${DEVICE}" == "n249" ]; then
+	if [ "${DEVICE}" == "n249" ] || [ "${DEVICE}" == "n418" ]; then
 		root_command cp "kernel/out/${DEVICE}/${KERNEL_FILE}" "${MOUNT_BASEPATH}/boot/zImage"
-		root_command cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
-		root_command cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
+		if [ "${DEVICE}" == "n249" ]; then
+			root_command cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
+			root_command cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
+		fi
 	else
 		root_command dd if="kernel/out/${DEVICE}/${KERNEL_FILE}" of=/dev/nbd0 bs=512 seek=81920
 	fi
@@ -206,10 +221,10 @@ setup_user() {
 	pushd out/
 	mkdir -p user/ && pushd user/
 	# cp /home/build/inkbox/emu/sd/user.sqsh.* .
-	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.a?raw=true" -O "user.sqsh.a"
-	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.b?raw=true" -O "user.sqsh.b"
-	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.c?raw=true" -O "user.sqsh.c"
-	wget "https://github.com/Kobo-InkBox/emu/blob/main/sd/user.sqsh.d?raw=true" -O "user.sqsh.d"
+	wget "https://github.com/Quill-OS/emu/blob/main/sd/user.sqsh.a?raw=true" -O "user.sqsh.a"
+	wget "https://github.com/Quill-OS/emu/blob/main/sd/user.sqsh.b?raw=true" -O "user.sqsh.b"
+	wget "https://github.com/Quill-OS/emu/blob/main/sd/user.sqsh.c?raw=true" -O "user.sqsh.c"
+	wget "https://github.com/Quill-OS/emu/blob/main/sd/user.sqsh.d?raw=true" -O "user.sqsh.d"
 	cat user.sqsh.* > user.sqsh
 	sync
 	root_command unsquashfs -f -d "${MOUNT_BASEPATH}/user" user.sqsh && sync && popd
@@ -257,8 +272,10 @@ setup_recoveryfs() {
 	root_command cp -v "${GITDIR}/out/release/rootfs-partition.tar.xz" opt/recovery/restore/rootfs-part.tar.xz
 	root_command cp -v "${GITDIR}/out/release/user-partition.tar.xz" opt/recovery/restore/userstore.tar.xz
 	root_command cp -v "${GITDIR}/sd/config-${DEVICE}.tar.xz" opt/recovery/restore/config.tar.xz
-	root_command cp -v "${GITDIR}/out/release/u-boot_inkbox.bin" opt/recovery/restore/u-boot_inkbox.bin
-	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ]; then
+	if [ "${DEVICE}" != "n418" ]; then
+		root_command cp -v "${GITDIR}/out/release/u-boot_inkbox.bin" opt/recovery/restore/u-boot_inkbox.bin
+	fi
+	if [ "${DEVICE}" == "n306" ] || [ "${DEVICE}" == "n306c" ] || [ "${DEVICE}" == "n249" ] || [ "${DEVICE}" == "n418" ]; then
 		root_command cp -v "${GITDIR}/out/release/zImage-std" opt/recovery/restore/zImage-std
 		root_command cp -v "${GITDIR}/out/release/zImage-root" opt/recovery/restore/zImage-root
 	else
@@ -320,8 +337,11 @@ case "${1}" in
 	n249)
 		DEVICE="n249"
 		;;
+	n418)
+		DEVICE="n418"
+		;;
 	*)
-		printf "%s is not a valid device! Available options are: n705, n905b, n905c, n613, n236, n437, n306, n306c, n249" "${1}" && exit 1
+		printf "%s is not a valid device! Available options are: n705, n905b, n905c, n613, n236, n437, n306, n306c, n249, n418" "${1}" && exit 1
 esac
 
 build_base_sd_image
