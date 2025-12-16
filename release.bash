@@ -182,6 +182,9 @@ setup_kernel() {
 		root_command cp "kernel/out/${DEVICE}/${KERNEL_FILE}" "${MOUNT_BASEPATH}/boot/zImage"
 		if [ "${DEVICE}" == "n249" ]; then
 			root_command cp "kernel/out/${DEVICE}/${DTB_FILE}" "${MOUNT_BASEPATH}/boot"
+			if [ "${DEVICE}" == "n249" ]; then
+				root_command ln -s "${DTB_FILE}" "${MOUNT_BASEPATH}/boot/imx6sll-kobo-clarahd.dtb"
+			fi
 			root_command cp "kernel/out/${DEVICE}/${BOOTSCRIPT_FILE}" "${MOUNT_BASEPATH}/boot"
 		fi
 	else
