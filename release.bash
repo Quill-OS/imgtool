@@ -63,10 +63,10 @@ build_base_sd_image() {
 	# Partition image and write unpartitioned space
 	root_command dd if="${GITDIR}/sd/${DEVICE}.bin" of=/dev/nbd0 && sync
 	# Format partitions
-	root_command mkfs.ext4 /dev/nbd0p1 -O "^metadata_csum"
-	root_command mkfs.ext4 /dev/nbd0p2 -O "^metadata_csum"
-	root_command mkfs.ext4 /dev/nbd0p3 -O "^metadata_csum"
-	root_command mkfs.ext4 /dev/nbd0p4 -O "^metadata_csum"
+	root_command mkfs.ext4 /dev/nbd0p1 -O "^metadata_csum,^orphan_file,^64bit"
+	root_command mkfs.ext4 /dev/nbd0p2 -O "^metadata_csum,^orphan_file,^64bit"
+	root_command mkfs.ext4 /dev/nbd0p3 -O "^metadata_csum,^orphan_file,^64bit"
+	root_command mkfs.ext4 /dev/nbd0p4 -O "^metadata_csum,^orphan_file,^64bit"
 	# Label partitions
 	root_command e2label /dev/nbd0p1 "boot"
 	root_command e2label /dev/nbd0p2 "recoveryfs"
@@ -142,12 +142,12 @@ setup_kernel() {
 
 	# Replace the public key in kernel
 	cd initrd/"${DEVICE}"/opt/
-	unsquashfs -d key key.sqsh
+	unsquashfs -f -no-xattrs -d key key.sqsh
 	rm -f key.sqsh
 	cd key/
 	rm -f public.pem
 	cp "${PUBLICKEY}" ./public.pem
-	mksquashfs . ../key.sqsh -b 1048576 -comp gzip -always-use-fragments
+	mksquashfs . ../key.sqsh -b 1048576 -comp gzip -always-use-fragments -no-xattrs
 	cd ../
 	rm -rf key/
 	cd ../../../
@@ -230,7 +230,7 @@ setup_user() {
 	wget "https://github.com/Quill-OS/emu/blob/main/sd/user.sqsh.d?raw=true" -O "user.sqsh.d"
 	cat user.sqsh.* > user.sqsh
 	sync
-	root_command unsquashfs -f -d "${MOUNT_BASEPATH}/user" user.sqsh && sync && popd
+	root_command unsquashfs -no-xattrs -f -d "${MOUNT_BASEPATH}/user" user.sqsh && sync && popd
 	root_command mkdir -p "${MOUNT_BASEPATH}/user/update"
 
 	# GUI rootfs base
@@ -239,7 +239,8 @@ setup_user() {
 	root_command cp -v "gui_rootfs.isa" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
 
 	root_command openssl dgst -sha256 -sign "${PKEY}" -out "${MOUNT_BASEPATH}/user/gui_rootfs.isa.dgst" "${MOUNT_BASEPATH}/user/gui_rootfs.isa"
-	CURRENT_VERSION=$(wget -q -O - "${PKGS_BASE_URL}/bundles/inkbox/native/update/ota_current")
+	# CURRENT_VERSION=$(wget -q -O - "${PKGS_BASE_URL}/bundles/inkbox/native/update/ota_current")
+	CURRENT_VERSION="2.0"
 	printf "%s\n" "${CURRENT_VERSION}" | root_command tee -a "${MOUNT_BASEPATH}/user/update/version"
 	if [ "${LOCAL_GUI_BUNDLE}" == "1" ]; then
 		pushd "${GITDIR}/../inkbox" && git pull && "${QMAKE}" && make clean && make -j$(($(nproc)*2)) && popd
@@ -249,17 +250,17 @@ setup_user() {
 		root_command cp -v "${GITDIR}/../gui-bundle/out/update.isa" "${MOUNT_BASEPATH}/user/update/update.isa"
 	else
 		wget "${PKGS_BASE_URL}/bundles/inkbox/native/update/${CURRENT_VERSION}/${DEVICE}/inkbox-update-${CURRENT_VERSION}.upd.isa"
-		unsquashfs "inkbox-update-${CURRENT_VERSION}.upd.isa" -extract-file update.isa
+		unsquashfs "inkbox-update-${CURRENT_VERSION}.upd.isa" -no-xattrs -extract-file update.isa
 		# Replace the keys in update.isa
 		cd squashfs-root/
-		unsquashfs -d update_inkbox update.isa
+		unsquashfs -no-xattrs -d update_inkbox update.isa
 		rm -f update.isa
 		cd update_inkbox/
 		rm -f inkbox.isa.dgst
 		rm -f qt.isa.dgst
 		openssl dgst -sha256 -sign "${PKEY}" -out qt.isa.dgst qt.isa
 		openssl dgst -sha256 -sign "${PKEY}" -out inkbox.isa.dgst inkbox.isa
-		mksquashfs . ../update.isa -b 1048576 -comp gzip -always-use-fragments
+		mksquashfs . ../update.isa -b 1048576 -comp gzip -always-use-fragments -no-xattrs
 		cd ../../
 		root_command cp -v squashfs-root/update.isa "${MOUNT_BASEPATH}/user/update/update.isa"
 	fi
